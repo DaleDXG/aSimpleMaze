@@ -8,6 +8,7 @@ class ParamsError(Exception):
 
 
 
+# 在迷宫中移动的角色，实际上是一个画笔
 class MazeWanderer:
     _character = None
     _character_x = 0
@@ -21,11 +22,11 @@ class MazeWanderer:
     _movement_lock = False
 
 
-    def __init__(self, mazeDrawer):
+    def __init__(self, mazeDrawer, up_keycode = 'Up', down_keycode = 'Down', left_keycode = 'Left', right_keycode = 'Right', color = 'red', shape = 'turtle'):
         if type(mazeDrawer) == MazeDrawer:
             self._mazeDrawer = mazeDrawer
         else:
-            self._mazeDrawer = MazeDrawer()
+            # self._mazeDrawer = MazeDrawer()
             raise ParamsError
         self._screen = self._mazeDrawer.get_screen()
         self._maze = self._mazeDrawer.get_maze()
@@ -34,16 +35,16 @@ class MazeWanderer:
 
         self._character = turtle.Pen()
         self._character.penup()
-        self._character.shape('turtle')
+        self._character.shape(shape)
         self._character.shapesize(self._distance / 50, self._distance / 50)
-        self._character.color('red')
+        self._character.color(color)
         self._character_move_to(self._character_x, self._character_y)
         self._character.speed(self._character_speed)
 
-        self._screen.onkeypress(self._on_up_pree, 'Up')
-        self._screen.onkeypress(self._on_down_pree, 'Down')
-        self._screen.onkeypress(self._on_left_pree, 'Left')
-        self._screen.onkeypress(self._on_right_pree, 'Right')
+        self._screen.onkeypress(self._on_up_press, up_keycode)
+        self._screen.onkeypress(self._on_down_press, down_keycode)
+        self._screen.onkeypress(self._on_left_press, left_keycode)
+        self._screen.onkeypress(self._on_right_press, right_keycode)
         self._screen.listen()
     
     # relative 模式下，只考虑x、y取值-1、0、1的情况，且其中之一为0
@@ -82,7 +83,7 @@ class MazeWanderer:
             self._character.goto(self._mazeDrawer.get_cell_coordinate(x, y))
             self._change_character_xy(x, y)
     
-    def _on_up_pree(self):
+    def _on_up_press(self):
         if not self._movement_lock:
             self._movement_lock = True
 
@@ -93,7 +94,7 @@ class MazeWanderer:
             
             self._movement_lock = False
     
-    def _on_down_pree(self):
+    def _on_down_press(self):
         if not self._movement_lock:
             self._movement_lock = True
 
@@ -104,7 +105,7 @@ class MazeWanderer:
             
             self._movement_lock = False
     
-    def _on_left_pree(self):
+    def _on_left_press(self):
         if not self._movement_lock:
             self._movement_lock = True
 
@@ -115,7 +116,7 @@ class MazeWanderer:
                 
             self._movement_lock = False
     
-    def _on_right_pree(self):
+    def _on_right_press(self):
         if not self._movement_lock:
             self._movement_lock = True
 
@@ -337,6 +338,13 @@ class Maze:
             point = (var_point[0], var_point[1])
         return (point[0] / 2, point[1] / 2)
     
+    # 将房间的坐标点转换为单个数字的房间号，每行的房间号是连续的
+    def point_to_num(self, row_num, col_num):
+        return int(row_num * self._num_col + col_num)
+    
+    def num_to_point(self, num):
+        return (int(num / self._num_col), num % self._num_col)
+    
     def get_num_row(self):
         return self._num_row
     
@@ -378,7 +386,7 @@ class Maze:
 
 
 
-'''
+"""
 Randomized Prim's algorithm
 随机Prim算法
 1. 初始化，建立所有单元格都被墙隔开的迷宫
@@ -389,8 +397,12 @@ Randomized Prim's algorithm
 如果两边的单元格属于不同的路径集合，则打通墙壁，使两侧连通，对应的集合合并
 重复这一步骤
 直到最终合并为一个集合，或入口和出口属于同一个集合，即入口到出口有可达路径
-（可以使用并查集优化速度）
-'''
+
+可使用并查集优化速度
+可以通过拿掉特定的一些边，改变迷宫的形状、轮廓
+
+适合生成复杂的标准迷宫
+"""
 class Maze_RPA(Maze):
     _node_parent = []
     _node_rank = []
@@ -404,6 +416,9 @@ class Maze_RPA(Maze):
 
     def createInitialMaze(self):
         self.mapMatrix = []
+        self._node_parent = []
+        self._node_rank = []
+        self._edges = []
         for i in range(self._num_row * 2 - 1):
             self.mapMatrix.append([])
             for j in range(self._num_col * 2 - 1):
@@ -422,13 +437,6 @@ class Maze_RPA(Maze):
                 else:
                     self.mapMatrix[i].append(False)
         print('Maze initializing done!')
-    
-    # 将房间的坐标点转换为单个数字的房间号，每行的房间号是连续的
-    def point_to_num(self, row_num, col_num):
-        return int(row_num * self._num_col + col_num)
-    
-    def num_to_point(self, num):
-        return (int(num / self._num_col), num % self._num_col)
 
     def createMaze(self):
         i = self._num_row * self._num_col - 1
@@ -436,7 +444,8 @@ class Maze_RPA(Maze):
             # 没合并成功就继续合并，合并成功了，开始下一次合并
             flag_union_successfully = False
             while not flag_union_successfully:
-                edge = self._edges[random.randint(0, len(self._edges) - 1)]
+                random_edge_num = random.randint(0, len(self._edges) - 1)
+                edge = self._edges[random_edge_num]
                 flag_union_successfully = self._union_vertices(edge[0], edge[1])
                 if flag_union_successfully:
                     point_a = self.num_to_point(edge[0])
@@ -445,7 +454,9 @@ class Maze_RPA(Maze):
                     point_b = (point_b[0] * 2, point_b[1] * 2)
                     point_wall = (int((point_a[0] + point_b[0]) / 2), int((point_a[1] + point_b[1]) / 2))
                     self.mapMatrix[point_wall[0]][point_wall[1]] = True
-                self._edges.remove(edge)
+                # pop 用索引号而 remove 用值删除元素，可能pop要更快？
+                # self._edges.remove(edge)
+                self._edges.pop(random_edge_num)
             i = i - 1
         print('Maze creating with RPA done!')
     
@@ -471,9 +482,169 @@ class Maze_RPA(Maze):
 
 
 
+"""
+Recursive backtracker
+递归回溯
+1.初始化，建立所有单元格都被墙可开的迷宫，选择一个起始点
+2.从当前单元格的没有到达过的邻居中，随机选择一个，打通墙壁
+重复这个步骤
+3.若当前单元格的邻居都已经到达过
+则退回上一个有未到达邻居的单元格
+或者 退回随机的有未到达邻居的单元格
+4.结束，没有可退回的单元格
+
+记忆中，递归问题最好转化为用堆栈解决，递归比较吃资源，并且层数有限制
+可增加一个标记单元格有没有被访问过的列表优化，这样堆栈中可以只保存有未访问邻居的单元格，而不用保存所有访问过的单元格
+可以产生广钻和深钻两种形式，描述中的直到没有未访问邻居是深钻形式，还可以每次破墙都从访问过的里面随机选一个，形成广钻
+深钻又能产生两种形式，退回上一个有未到达邻居的单元格相对形成的树更深，而退回随机有未到达邻居的单元格相对较浅
+可以结合上面的三种形式产生变种，比如设置从一个单元格开始，最多钻一定步数，然后从栈中随机选取一个重复步骤
+这种方法对每个方向的概率还可以进行调整，比如使向终点方向破墙的概率变大，降低迷宫难度
+其他的变种还可以有，预设已访问列表，让它不是全False的矩阵，其中有True，这样可以让迷宫产生特定的形状
+
+适合生成主线支线明显的迷宫
+"""
+class Maze_RB(Maze):
+    _stack = []
+    _visited = []
+
+    # 现在想想，初始化和实际的生成迷宫过程分开两部分，可能没有什么道理，这两个过程分别使用都是没有意义的
+    def createInitialMaze(self):
+        self.mapMatrix = []
+        self._visited = []
+        for i in range(self._num_row * 2 - 1):
+            self.mapMatrix.append([])
+            for j in range(self._num_col * 2 - 1):
+                if i % 2 == 0 and j % 2 == 0:
+                    self.mapMatrix[i].append(True)
+                    self._visited.append(False)
+                else:
+                    self.mapMatrix[i].append(False)
+    
+    # 用depth参数表示大概率会形成多深程度的树，0表示最浅，1表示一般深，2表示最深
+    def createMaze(self, depth = 2):
+        self._stack = [self._start_point]
+
+        if depth == 0:
+            while len(self._stack) == 0:
+                current_stack_num = random.randint(0, len(self._stack) - 1)
+                current_room = self._stack[current_stack_num]
+                # current_room_x = current_room[0]
+                # current_room_y = current_room[1]
+                self._visited[self.point_to_num(current_room)] = True
+                
+                if len(possible_direction) > 0:
+                    pass
+                else:
+                    self._stack.pop(current_stack_num)
+        elif depth == 1:
+            pass
+        else:
+            pass
+        
+    def _get_unvisited_directions(self, current_room_x, current_room_y = None):
+        # 加了下划线，内部使用的函数，不做复杂验证了
+        if type(current_room_x) == tuple:
+            current_room_x, current_room_y = current_room_x
+        # 分别对应上下左右
+        unvisited_direction = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        # 首先pop效率比remove高，所以比起for循环遍历更想用while + 索引号遍历，但pop之后索引号会发生变化，所以从后向前反着遍历
+        i = 3
+        while i >= 0:
+            dir_x = current_room_x + unvisited_direction[i][0]
+            dir_y = current_room_y + unvisited_direction[i][1]
+            # 如果单元格在边界上会少方向，然后检查这个方向有没有被访问过
+            if dir_x <= 0 or dir_x >= self._num_row - 1 or dir_y <= 0 or dir_y >= self._num_col - 1 or self._visited[self.point_to_num(dir_x, dir_y)]:
+                unvisited_direction.pop(i)
+            i -= 1
+        return unvisited_direction
+
+
+
+"""
+Recursive division
+递归分割
+属于构造墙壁的迷宫生成算法
+1.初始化，生成全空无墙迷宫
+2.在空白空间随机生成十字墙壁，将空间分割为4个子空间
+在其中3面墙壁上各自选择一个随机位置挖洞，确保4个子空间的连通性
+对子空间重复这一步骤
+3.结束，子空间不能继续分割
+
+适合生成转角较少的迷宫
+"""
+class Maze_RD(Maze):
+    _stack = []
+
+
+
+# 扫雷游戏
+class Minesweeper:
+    mapMatrix = []
+    mapShadow = []
+    _num_row = 0
+    _num_col = 0
+
+
+    def __init__(self, num_row = 10, num_col = 0):
+        pass
+
+
+
+# 用turtle库做的计时器工具，越看文档越觉得能写出turtle库的人真的挺厉害的
+class Timer:
+    _timer = 0
+    _t = 0
+
+
+    # 参数 t 表示每多少毫秒计一次
+    def __init__(self, t = 100):
+        self._t = t
+        turtle.ontimer(self._ontimer, t)
+        turtle.listen()
+    
+    def _ontimer(self):
+        self._timer += 1
+    
+    def check_timer(self):
+        return self._timer
+    
+    def check_timer_secs(self):
+        return self._timer * self._t / 1000
+
+
+
+class FileHelper:
+    _file_name = ''
+    _file = None
+
+
+    def __init__(self, file_name):
+        if type(file_name) == str:
+            self._file_name = file_name
+        else:
+            raise ParamsError
+        self._file = open(file_name, 'at+')
+    
+    def __def__(self):
+        self._file.write('\n')
+        self._file.close()
+    
+    def add_line(self, content):
+        if type(content) == str:
+            self._file.write(content + '\n')
+        else:
+            raise ParamsError
+
+
+
+# turtle库的Screen.mainloop()实际上又调用了tkinter.mainloop()
+# 真的是层层套娃
+mainloop = turtle.mainloop
+
+
+
 if __name__ == '__main__':
     maze_drawer = MazeDrawer(30, 50)
-    # maze_drawer._maze.showMazeAsMatrix()
     maze_wanderer = MazeWanderer(maze_drawer)
     maze_drawer.drawMaze()
-    turtle.mainloop()
+    mainloop()
